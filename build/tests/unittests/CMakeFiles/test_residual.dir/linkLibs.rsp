@@ -1,0 +1,1 @@
+ -lcudart -lcudadevrt ../../lib/libadd_residual.a -lcudadevrt -lcudart_static -lrt -lpthread -ldl 
