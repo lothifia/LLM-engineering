@@ -5,7 +5,7 @@
 #include "src/utils/macro.h"
 #include "src/utils/tensor.h"
 
-void launchCalPaddingoffset(TensorWrapper<int>* padding_offset, 
-                            TensorWrapper<int>* cum_seqlens,
-                            TensorWrapper<int>* input_lengths //actual input lens
+void launchCalPaddingoffset(TensorWrapper<int>* padding_offset,  //   
+                            TensorWrapper<int>* cum_seqlens, // 累计的句子长度
+                            TensorWrapper<int>* input_lengths //actual input lens 输入长度
 );

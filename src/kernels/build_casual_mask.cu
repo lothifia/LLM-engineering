@@ -15,7 +15,9 @@ __global__ void BuildCausalMasksConsideringContextPastKV(T* mask,
     while (offset < max_q_len * max_k_len){
         int q = offset / max_k_len;
         int k = offset % max_k_len;
-        bool is_one = q < qlen && k < klen && k <= q + (klen - qlen) && k >= klen - qlen;
+        bool is_one = q < qlen && k < klen && k <= q + (klen - qlen) 
+            // && k >= klen - qlen; // 阻止context
+            ;
         mask[offset] = static_cast<T>(is_one);
 
         offset += blockDim.x;
@@ -30,6 +32,7 @@ void launchBuildCausalMasks(TensorWrapper<T>* mask,
     int batch_size = mask->shape[0];
     int max_q_len = mask->shape[1];
     int max_k_len = mask->shape[2];
+    // 一个batchsize 给一个block, 
     BuildCausalMasksConsideringContextPastKV<T><<<batch_size, 256>>>(mask->data, q_lens->data, k_lens->data, max_q_len, max_k_len);
 }
 

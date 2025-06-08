@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
     const int num_tokens = 64;
     const int hidden_units = 4096;
     const int total_size = num_tokens * hidden_units;
-    float eps = 1e-6;
+    float eps = 1e-5;
     // debug info, better to retain: std::cout <<"batch_size=" << batch_size << "  vocab_size=" << vocab_size << std::endl;
     // first param = true or 1, we go fp32
     if (argv[1]) {

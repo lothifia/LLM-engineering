@@ -12,26 +12,122 @@ __device__ T warpReduceSum(T val){
     }
     return val; // 32 threads return val, but only 0th thread is sum val
 }
+
+// template<typename T>
+// __device__ T warpReduceSum(T val) {
+//     for(int i = 32; i > 0; i >> 1) {
+//         val += __shfl_xor_sync(0xffffffff, val, i);
+//     }
+//     return val;
+// }
 //note:!!!when blocksize < 32, use blockDim.x/32 to get warp nums is wrong, we should instead ceil it
 template<typename T>
 __device__ T blockReduceSum(T val){
+    // int tid = threadIdx.x;
+    // int wid = tid / 32;
+    // int laneid = tid % 32;
+    // int warpnum = (blockDim.x + 31) / 32;
+    // static __shared__ T warpsum[64];
+    // val = warpReduceSum<T>(val);
+    // if(laneid == 0){
+    //     warpsum[wid] = val;
+    // }
+    // __syncthreads();
+
+    // T sum = tid < warpnum ? warpsum[tid] : (T)0;
+    // sum = warpReduceSum<T>(sum); //though 0th own the sum, but dont need to shfl sync
+    // return sum;
     int tid = threadIdx.x;
     int wid = tid / 32;
     int laneid = tid % 32;
-    int warpnum = (blockDim.x + 31) / 32;
-    static __shared__ T warpsum[64];
-    val = warpReduceSum<T>(val);
-    if(laneid == 0){
-        warpsum[wid] = val;
+    int warpNum = ((blockDim.x + 32 - 1)/ 32);
+    val = warpReduceSum(val);
+    static __shared__ T blockS[64];
+    if(laneid == 0) {
+        blockS[wid] = val;
     }
     __syncthreads();
-
-    T sum = tid < warpnum ? warpsum[tid] : (T)0;
-    sum = warpReduceSum<T>(sum); //though 0th own the sum, but dont need to shfl sync
+    T sum = 0;
+    if(tid < warpNum) {
+        sum = blockS[tid];
+    }
+    sum = warpReduceSum<T>(sum);
     return sum;
+}
+
+
+// 一个block 处理一行数据 [bs, hd] -> hd
+// 一个
+template< typename T>
+__global__ void RMSNorm_h(T* decoder_in, T* risidual, T* scale, float eps, int num_tokens, int hidden_units) {
+    int vec_size = Vec<T>::size;
+    using Vec_T = typename Vec<T>::Type;
+    int block_stride = blockDim.x;
+    // 定位到目标行 （ 一个block一个行)
+    Vec_T* d_in = reinterpret_cast<Vec_T*>(decoder_in + hidden_units * blockIdx.x);
+    Vec_T* r_in = reinterpret_cast<Vec_T*>(risidual + hidden_units * blockIdx.x);
+    // 记录所有val
+    float thread_sum = 0.0f;
+    for(int loop_idx = threadIdx.x ; loop_idx < hidden_units / vec_size; loop_idx += block_stride) {
+        // 向量读取
+        Vec_T vec = d_in[loop_idx];
+        // 保存残差
+        r_in[loop_idx] = vec;
+
+        thread_sum += vec.x * vec.x;
+        thread_sum += vec.y * vec.y;
+        thread_sum += vec.z * vec.z;
+        thread_sum += vec.w * vec.w;
+    }
+    thread_sum = blockReduceSum<T> (thread_sum);
+    __shared__ float inv_rms;
+    if(threadIdx.x == 0) {
+        inv_rms = rsqrt(thread_sum / hidden_units) + eps;
+    }
+    __syncthreads();
+    Vec_T* s_in = reinterpret_cast<Vec_T*>(scale + hidden_units * blockIdx.x);
+    for(int loop_idx = threadIdx.x ; loop_idx < hidden_units / vec_size; loop_idx += block_stride) {
+        // 向量读取
+        Vec_T vec = d_in[loop_idx];
+        d_in[loop_idx].x = vec.x * inv_rms * s_in[loop_idx].x;
+        d_in[loop_idx].y = vec.y * inv_rms * s_in[loop_idx].y;
+        d_in[loop_idx].z = vec.z * inv_rms * s_in[loop_idx].z;
+        d_in[loop_idx].w = vec.w * inv_rms * s_in[loop_idx].w;
+    }
+}
+
+template<>
+__global__ void RMSNorm_h(half* decoder_in, half* risidual, half* scale, float eps, int num_tokens, int hidden_units) {
+    int vec_size = Vec<half>::size;
+    using Vec_T = typename Vec<half>::Type;
+    int block_stride = blockDim.x;
+    // 定位到目标行 （ 一个block一个行)
+    Vec_T* d_in = reinterpret_cast<Vec_T*>(decoder_in + hidden_units * blockIdx.x);
+    // 记录所有val
+    float thread_sum = 0.0f;
+    for(int loop_idx = threadIdx.x ; loop_idx < hidden_units / vec_size; loop_idx += block_stride) {
+        // 向量读取
+        Vec_T vec = d_in[loop_idx];
+        thread_sum += __half2float(vec.x) * __half2float(vec.x);
+        thread_sum += __half2float(vec.y) * __half2float(vec.y);
+    }
+    thread_sum = blockReduceSum<float> (thread_sum);
+    __shared__ float inv_rms;
+    if(threadIdx.x == 0) {
+        inv_rms = rsqrt(thread_sum / hidden_units) + eps;
+    }
+    __syncthreads();
+    Vec_T* s_in = reinterpret_cast<Vec_T*>(scale + hidden_units * blockIdx.x);
+    for(int loop_idx = threadIdx.x ; loop_idx < hidden_units / vec_size; loop_idx += block_stride) {
+        // 向量读取
+        Vec_T vec = d_in[loop_idx];
+        d_in[loop_idx].x = __float2half(inv_rms *__half2float(s_in[loop_idx].x) * __half2float(vec.x));
+        d_in[loop_idx].y = __float2half(inv_rms * __half2float(s_in[loop_idx].y) * __half2float(vec.y));
+    }
 }
 // 1.this kernel is used at the begin of every decoder layer and the end of 32 decoder layers
 // 2.I allocate threads number by assuming head size can be divided by 4 and 2
+//  x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)  ###RMS Norm公式
 template <typename T>
 __global__ void RMSNorm(T* decoder_out, // [num tokens, q_hidden_units]
                         T* decoder_residual,
@@ -116,16 +212,16 @@ __global__ void RMSNorm(half* decoder_out, // [num tokens, q_hidden_units]
 
 template<typename T>
 void launchRMSNorm( TensorWrapper<T>* decoder_out, // [num tokens, hidden_units]
-                    TensorWrapper<T>* decoder_residual,
+                    TensorWrapper<T>* decoder_residual,// [num tokens, hidden_units]
                     LayerNormWeight<T>& attn_norm_weight, //RMSNorm weights
-                    float eps, //RMSNorm eps
+                    float eps, //RMSNorm eps 10e-5 
                     bool is_last // for print last rmsnorm output to debug
                     )
 {
     int num_tokens = decoder_out->shape[0];
     int hidden_units = decoder_out->shape[1];
     int vec_size = Vec<T>::size;
-    int num_threads = hidden_units / 4; //vec size // assume head size can be divided by 4 and 2
+    int num_threads = hidden_units / vec_size; //vec size // assume head size can be divided by 4 and 2
     T* rsd = decoder_residual->data;
     dim3 grid(num_tokens);
     dim3 block(num_threads);
