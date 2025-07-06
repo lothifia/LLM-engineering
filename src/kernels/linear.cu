@@ -13,6 +13,17 @@
 // up:[bs/token nums, q hidden units] * [q hidden units, inter size] = [bs/token nums, inter size]
 // fusedGateUpGemm: [bs/token nums, q hidden units] * [q hidden units, 2 * inter size] = [bs/token nums, 2 * inter size]
 // down:[bs/token nums, inter size] * [q hidden units, inter size] = [bs/token nums, q hidden units]
+
+/*
+* @param[in] trans_a 是否对读入的input做转置操作
+* @param[in] trans_b 对weight
+* @param[in] input 输入的矩阵
+* @note cublas存储方式： 
+    cublas 列主序  ; weight，input，都是rowm，
+    w作为左乘：A 且不需要转置， 而x作为右乘：B且需要转置
+    y^T = W^T * X^T
+
+*/
 template <typename T>
 void launchLinearGemm(TensorWrapper<T> *input,
                       BaseWeight<T> &weight,
@@ -20,14 +31,14 @@ void launchLinearGemm(TensorWrapper<T> *input,
                       cublasWrapper *cublas_wrapper,
                       bool trans_a,
                       bool trans_b)
-{
+{ // 直接取转置后的shapBB
     int Am = weight.shape[1];
     int Ak = weight.shape[0];
     int Bk = input->shape[1];
     int Bn = input->shape[0];
     int Cm = output->shape[1];
     int Cn = output->shape[0];
-    // for ctx attn and self attn qkv linear, assume [bs/token nums, qkv h ead num, head size]
+    // for ctx attn and self attn qkv linear, assume [bs/token nums, qkv head num, head size]
     // for gate & up linear, assume weight.shape=[hidden,2*intersize], output.shape=[bs, 2, inter size]
     Cm = output->shape.size() == 3 ? output->shape[1] * output->shape[2] : output->shape[1];
     // for ctx attn output linear

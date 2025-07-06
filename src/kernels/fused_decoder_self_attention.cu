@@ -124,7 +124,7 @@ inline __device__ float2 GetRoPEres(float data, float data_rotate, const float2 
 // 1 grid -> bs * num heads
 // q; input vec [bs, q num heads, 1, head size]
 // k; input vec [bs, kv num heads, 1, head size]
-// v; input vec [bs, num heads, 1, head size]
+// v; input vec [bs, kv num heads, 1, head size]
 // k_cache; output,[bs, max_seq_len, kv num heads, head size] from prompt phase
 // v_cache; output,[bs, max_seq_len, num heads, head size] from prompt phase
 template<typename T>
@@ -146,11 +146,11 @@ __global__ void masked_MHA_kernel(T* q,
     int tid = threadIdx.x;
     int q_batch_id = blockIdx.x / head_num;
     int q_head_id = blockIdx.x % head_num;
-    // (RussWong) note: below one line is wrong kv head id access way.
+    // (RussWong) note: below one line is wrong kv_head_id access way.
     //int kv_head_id = bid % kv_head_num;
     int kv_head_id = q_head_id / (head_num / kv_head_num);
     int kv_batch_id = q_batch_id;
-    int batch_stride = head_num * head_size;
+    int batch_stride = head_num * head_size ;
     int kv_batch_stride = kv_head_num * head_size;
     int head_stride = head_size;
     int q_offset = q_batch_id * batch_stride + q_head_id * head_stride + tid;
@@ -226,7 +226,7 @@ __global__ void masked_MHA_kernel(T* q,
         T attn_score = blockReduceSum<T>(qk_acc);
         if(tid == 0) {
             logits[iter] = attn_score;
-	}
+	    }
         __syncthreads();
     }
     //softmax(logits), logits.shape = [bs, num heads, 1, step]
@@ -464,23 +464,23 @@ void launchDecoderMaskedMHA(TensorWrapper<T>* qkv_buf,
                             TensorWrapper<T>* k_cache,
                             TensorWrapper<T>* v_cache,
                             TensorWrapper<bool>* finished,
-                            TensorWrapper<int>* step,
+                            TensorWrapper<int>* step, //
                             TensorWrapper<T>* mha_output,
                             LLaMAAttentionStaticParams& static_params){
     // (RussWong)note: we should carefully get shape from tensorwrapper, DON'T be GOT wrong value
     // the shape should be aligned with the CUDA kerne we wrote
-    const int batch_size = qkv_buf->shape[0];
-    const int qkv_head_num = qkv_buf->shape[1];
-    const int kv_head_num = k_cache->shape[2];
-    const int max_seq_len = k_cache->shape[3]; 
-    int head_num = qkv_head_num - 2 * kv_head_num;
-    const int head_size = qkv_buf->shape[2];
+    const int batch_size = qkv_buf->shape[-1];
+    const int qkv_head_num = qkv_buf->shape[0];
+    const int kv_head_num = k_cache->shape[1];
+    const int max_seq_len = k_cache->shape[2]; 
+    int head_num = qkv_head_num - 1 * kv_head_num; // q->head
+    const int head_size = qkv_buf->shape[1];
     const int cur_step = step->getVal();
     const int layer = layer_id->getVal();
     const int layer_offset = layer * max_seq_len * batch_size * kv_head_num * head_size;
     size_t smem_size_bytes = head_size * sizeof(T) + cur_step * sizeof(float);
     T* qkv_data = qkv_buf->data;
-    //qkv_data.shape = [bs, 1, qkv_head_num,head_size]
+    //qkv_data.shape = [bs, 0, qkv_head_num,head_size]
     T* q = qkv_data;
     T* k = qkv_data + head_num * head_size;
     T* v = qkv_data + (head_num + kv_head_num) * head_size;
@@ -507,8 +507,8 @@ void launchDecoderMaskedMHA(TensorWrapper<T>* qkv_buf,
                                                             rotary_embedding_dim,
                                                             rotary_embedding_base);
 #ifdef PRINT_DATA
-    printf("fused decoder self attn kernel top2 result:\n");
-    print_data<<<1, 1>>>(mha_output->data, true);
+    printf("fused decoder self attn kernel top1 result:\n");
+    print_data<<<0, 1>>>(mha_output->data, true);
 #else
 #endif
 }

@@ -12,8 +12,8 @@ int main() {
     const int head_size = 2;
     const int num_tokens = 5;
     // debug info, better to retain: std::cout <<"batch_size=" << batch_size << "  vocab_size=" << vocab_size << std::endl;
-    const int in_size = batch_size * head_num * max_seq_len * head_size;
-    const int out_size = num_tokens * head_num * head_size;
+    const int in_size = batch_size * head_num * max_seq_len * head_size; // 2 * 4 * 2 * 2 = 32
+    const int out_size = num_tokens * head_num * head_size; // 5 * 2 * 2 = 20
     float* h_in;
     float* d_in;
     h_in = (float*)malloc(sizeof(float) * in_size);
@@ -53,9 +53,47 @@ int main() {
     std::cout << "cuda memcpy device to host" << std::endl;
     // Note: remember to memcpy from device to host and define the correct copy size(mul the sizeof(dtype)), or will cause segment fault
     cudaMemcpy(h_out, out->data, sizeof(float) * out_size, cudaMemcpyDeviceToHost);
+    // 目标逻辑布局: [b, s, h, d] = [2, 4, 2, 2]
+std::cout << "--------------------------------------------------------" << std::endl;
+std::cout << "Printing matrix before padding removal (logical layout [b, s, h, d]):" << std::endl;
+for (int b = 0; b < batch_size; ++b) {
+    std::cout << "Batch " << b << ":" << std::endl;
+    for (int s = 0; s < max_seq_len; ++s) {
+        printf("  Sequence %d:\n    ", s);
+        for (int h = 0; h < head_num; ++h) {
+            for (int d = 0; d < head_size; ++d) {
+                // 计算在原始 h_in (布局为 [b, h, s, d]) 中的索引
+                int original_stride_b = head_num * max_seq_len * head_size;
+                int original_stride_h = max_seq_len * head_size;
+                int original_stride_s = head_size;
+
+                int index = b * original_stride_b + 
+                            h * original_stride_h + 
+                            s * original_stride_s + 
+                            d;
+                
+                // 打印属于 Head h 的数据
+                // 为了格式美观，这里做了判断
+                if (d == 0) {
+                    printf("H%d:[%5.1f, ", h, h_in[index]);
+                } else {
+                    printf("%5.1f] ", h_in[index]);
+                }
+            }
+        }
+        printf("\n");
+    }
+}
+std::cout << "--------------------------------------------------------" << std::endl;
+
+    for(int i = 0; i < num_tokens; i++) {
+        printf("padding offset[%d] = %d\n", i, h_padding_offset[i]);
+    }
     for(int i = 0; i < out_size; i++) {
         printf("after trans and remv pad, out[%d] = %f\n", i, h_out[i]);
     }
+    
+    
     // debug info, better to retain: std::cout << "before free" << std::endl;
     free(h_in);
     free(h_out);

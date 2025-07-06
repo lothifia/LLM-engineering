@@ -35,6 +35,12 @@
 //         sin = freqs.sin()
 //         cache = torch.cat((cos, sin), dim=-1)
 //         return cache
+/*
+@param zid = 2^i -1
+@param t_step = m
+@param rot_embed_dim = ?
+@param base = 10000
+*/
 inline __device__ float2 GetRoPEfreq(int zid, int rot_embed_dim, float base, float t_step)
 {
     // (RussWong) note: 每个token所属的id, 它的freq值都是固定的, id的上限为max position embedding
@@ -43,7 +49,11 @@ inline __device__ float2 GetRoPEfreq(int zid, int rot_embed_dim, float base, flo
     const float inv_freq = t_step / powf(base, zid / (float)rot_embed_dim);
     return {cos(inv_freq), sin(inv_freq)};
 }
-
+/*
+@param coef = {cos, sin}
+@param data
+@param dta_rotate
+*/
 inline __device__ float2 GetRoPEres(float data, float data_rotate, const float2 coef)
 {
     float2 rot_v;
@@ -106,6 +116,20 @@ inline __device__ float2 GetRoPEres(float data, float data_rotate, const float2 
 //     k_.x = GetRoPEres(k_.x, coef0);
 //     k_.y = GetRoPEres(k_.y, coef1);
 // }
+template<typename T>
+__global__ void my_fusedQKV(T* q_buf, T* k_buf, T* v_buf, T* QVK, const T *qkv_bias, const int *padding_offest, const int *history_length, const int batch_size, 
+                            const int seq_len,// max_seq_len to pad to
+                            const int token_num,
+                            const int head_num,
+                            const int kv_head_num,
+                            const int head_size,
+                            const int rotary_embedding_dim,
+                            float rotary_embedding_base, // default 10000 in llama
+                            int max_position_embeddings, /*default 2048 in llama*/
+                            bool use_dynamic_ntk /*placeholder for ntk RoPE*/) {
+
+                            }
+
 template <typename T>
 __global__ void add_fusedQKV_bias_transpose_kernel(T *q_buf,
                                                    T *k_buf,

@@ -43,13 +43,14 @@ void cublasWrapper::Gemm(cublasOperation_t transa,
                            float             f_alpha = 1.0f,
                            float             f_beta = 0.0f)
 {
+    // float 传入，如果计算规则是half则修改
     half h_alpha = (half)(f_alpha);
     half h_beta  = (half)(f_beta);
     int is_fp16_computeType = computeType_ == CUDA_R_16F ? 1 : 0; //之前是CUDA_R_16F
     const void* alpha = is_fp16_computeType ? reinterpret_cast<void*>(&(h_alpha)) : reinterpret_cast<void*>(&f_alpha);
     const void* beta  = is_fp16_computeType ? reinterpret_cast<void*>(&(h_beta)) : reinterpret_cast<void*>(&f_beta);
     CHECK_CUBLAS(cublasGemmEx(cublas_handle_,
-                            transa,
+                            transa, // a b是否转置
                             transb,
                             m,
                             n,
@@ -76,14 +77,14 @@ void cublasWrapper::stridedBatchedGemm(cublasOperation_t transa,
                                         const int         k,
                                         const void*       A,
                                         const int         lda,
-                                        const int64_t     strideA,
+                                        const int64_t     strideA, // 相比非batch 多了stride ：batch 维度的stirde （A[1, 2, 3, 4] -> stride = 3 * 4)
                                         const void*       B,
                                         const int         ldb,
                                         const int64_t     strideB,
                                         void*             C,
                                         const int         ldc,
                                         const int64_t     strideC,
-                                        const int         batchCount,
+                                        const int         batchCount, // 相比非batch 多了 batchcount ：batch 维度的数量 （A[1, 2, 3, 4] -> batchcount = 1 * 2)
                                         float       f_alpha = 1.0f,
                                         float       f_beta  = 0.0f)
 {

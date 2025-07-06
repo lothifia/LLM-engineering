@@ -103,7 +103,8 @@ public:
         for (int i = 0; i < SmallBlocks.size(); i++) {
             if (SmallBlocks[i].size >= size && !SmallBlocks[i].is_allocated) {
                 SmallBlocks[i].is_allocated = true;
-                FreeSize[i] += SmallBlocks[i].size;//小buf size
+                // hzladd : FreeSize[dev_id] -= SmallBlocks[i].size; ?
+                FreeSize[dev_id] -= SmallBlocks[i].size;//小buf size
                 // std::cout << "allocate a existed small block, id = " << i 
                 //                 <<", size = "<< size << "B"
                 //                 <<", block size = "<< SmallBlocks[i].size << "B"
