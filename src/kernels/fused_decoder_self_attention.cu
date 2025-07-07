@@ -472,12 +472,12 @@ void launchDecoderMaskedMHA(TensorWrapper<T>* qkv_buf,
                             LLaMAAttentionStaticParams& static_params){
     // (RussWong)note: we should carefully get shape from tensorwrapper, DON'T be GOT wrong value
     // the shape should be aligned with the CUDA kerne we wrote
-    const int batch_size = qkv_buf->shape[-1];
-    const int qkv_head_num = qkv_buf->shape[0];
-    const int kv_head_num = k_cache->shape[1];
-    const int max_seq_len = k_cache->shape[2]; 
-    int head_num = qkv_head_num - 1 * kv_head_num; // q->head
-    const int head_size = qkv_buf->shape[1];
+     const int batch_size = qkv_buf->shape[0];
+    const int qkv_head_num = qkv_buf->shape[1];
+    const int kv_head_num = k_cache->shape[2];
+    const int max_seq_len = k_cache->shape[3]; 
+    int head_num = qkv_head_num - 2 * kv_head_num;
+    const int head_size = qkv_buf->shape[2];
     const int cur_step = step->getVal();
     const int layer = layer_id->getVal();
     const int layer_offset = layer * max_seq_len * batch_size * kv_head_num * head_size;
