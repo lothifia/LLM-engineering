@@ -81,6 +81,7 @@ void CPUMaskedAttn(T *q,
                 fenzi = expf(logits[batch_id * num_heads * step + head_id * step + iter] - row_max);
                 fenmu += fenzi;
             }
+            // fenmu += 1e-6;
             for (int iter = 0; iter < step; iter++)
             { // row
                 logits[batch_id * num_heads * step + head_id * step + iter] = (float)(fenzi / fenmu);
@@ -388,6 +389,7 @@ int main(int argc, char *argv[])
     params.rotary_embedding_base = rotary_embedding_base;                                                                                        
     params.max_position_embeddings = max_position_embeddings;                                                                                    
     params.use_dynamic_ntk = false;                                                                                                              
+    printf("launchDecoderMaskedMHA\n");
     launchDecoderMaskedMHA(qkv, qkv_weight, layer_id, kcache, vcache, finished, step, mha_output, params);                                       
     CHECK(cudaMemcpy(h_o, d_o, sizeof(float) * o_size, cudaMemcpyDeviceToHost));                                                                 
     float *CPU_output = (float *)malloc(sizeof(float) * o_size);                                                                                 

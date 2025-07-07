@@ -247,6 +247,9 @@ __global__ void masked_MHA_kernel(T* q,
     __syncthreads();
     if(tid < step) {
         logits[tid] = (T)(fenzi / fenmu);
+        if (tid == 0) {
+            printf("logits[%d] = %f\n", tid, logits[tid]);
+        }
     }
     __syncthreads();
 
@@ -489,6 +492,7 @@ void launchDecoderMaskedMHA(TensorWrapper<T>* qkv_buf,
     float rotary_embedding_base = static_params.rotary_embedding_base;
     int   max_position_embeddings = static_params.max_position_embeddings;
     bool  use_dynamic_ntk = static_params.use_dynamic_ntk;
+    printf("head_num = %d, batch_size = %d, head_size = %d, cur_step = %d, layer = %d, layer_offset = %d, smem_size_bytes = %zu\n", head_num, batch_size, head_size, cur_step, layer, layer_offset, smem_size_bytes);
     dim3 grid(head_num * batch_size);
     dim3 block(head_size); //vec size = 4 for fp32
     masked_MHA_kernel<T><<<grid, block, smem_size_bytes>>>(q,
