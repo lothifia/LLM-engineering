@@ -30,6 +30,7 @@ int main() {
 
     for(int i = 0; i < batch_size; i++) { // 3
        h_seq_lens[i] = batch_size;
+       printf("h_seq_lens[%d] = %d\n", i, h_seq_lens[i]);
     }
     cudaMemcpy(d_seq_lens, h_seq_lens, sizeof(int) * batch_size, cudaMemcpyHostToDevice);
     DataType type_int = getTensorType<int>();

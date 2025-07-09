@@ -280,7 +280,9 @@ void launchScaleMaskAndSoftmax(TensorWrapper<T> *qk,
     if (is_half) {
     	LLM_CHECK_WITH_INFO(k_length % 2 == 0, "Currently, K_len should be divided by 2 under half type!");
     }
-    dim3 grid(q_length, batch_size, head_nums);
+    
+    const int physical_block_size = min(1024, q_length);
+    dim3 grid(physical_block_size, batch_size, head_nums);
     dim3 block((k_length + 32 - 1) / 32 * 32); // align with 32x threads
     if (is_half)
     {
