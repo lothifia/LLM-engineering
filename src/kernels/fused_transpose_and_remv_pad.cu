@@ -8,24 +8,24 @@ __global__ void fused_transpose_reshape_remv_pad(T *src,
                                                  T *dst,
                                                  const int num_tokens,
                                                  const int batch_size,
-                                                 const int seq_len,
+                                                 const int max_seq_len,
                                                  const int head_num,
                                                  const int head_size,
                                                  const int *padding_offset /*for remove padding*/)
 {
     int token_id = blockIdx.x; 
     // map to input id
-    int batch_id = (blockIdx.x + padding_offset[token_id]) / seq_len;
-    int seq_id = (blockIdx.x + padding_offset[token_id]) % seq_len;
+    int batch_id = (blockIdx.x + padding_offset[token_id]) / max_seq_len;
+    int seq_id = (blockIdx.x + padding_offset[token_id]) % max_seq_len;
     // compute the offset of transpose and remove padding before or after
-    int src_offset = batch_id * head_num * seq_len * head_size + seq_id * head_size;
+    int src_offset = batch_id * head_num * max_seq_len * head_size + seq_id * head_size;
     int dst_offset = token_id * head_num * head_size;
 
     for (int i = threadIdx.x; i < head_num * head_size; i += blockDim.x)
     {
         int head_id = i / head_size;
         int head_size_id = i % head_size;
-        dst[dst_offset + i] = src[src_offset + head_id * seq_len * head_size + head_size_id];
+        dst[dst_offset + i] = src[src_offset + head_id * max_seq_len * head_size + head_size_id];
     }
 }
 template <typename T>
@@ -38,6 +38,11 @@ void launchTransposeOutRemovePadding(TensorWrapper<T> *qkv_buf_w_pad,
     int seq_len = qkv_buf_w_pad->shape[2];
     int head_size = qkv_buf_w_pad->shape[3];
     int num_tokens = qkv_buf_wo_pad_1->shape[0];
+    printf("num_tokens: %d\n", num_tokens);
+    printf("batch_size: %d\n", batch_size);
+    printf("seq_len: %d\n", seq_len);
+    printf("head_num: %d\n", head_num);
+    printf("head_size: %d\n", head_size);
     dim3 grid(num_tokens);
     dim3 block(std::min(head_num * head_size, 1024));
     fused_transpose_reshape_remv_pad<T><<<grid, block>>>(qkv_buf_w_pad->data,

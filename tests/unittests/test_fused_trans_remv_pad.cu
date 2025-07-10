@@ -54,6 +54,18 @@ int main() {
     // Note: remember to memcpy from device to host and define the correct copy size(mul the sizeof(dtype)), or will cause segment fault
     cudaMemcpy(h_out, out->data, sizeof(float) * out_size, cudaMemcpyDeviceToHost);
     // 目标逻辑布局: [b, s, h, d] = [2, 4, 2, 2]
+
+    // print matrix before transpose [b, h, s, d]
+    printf("before transpose and remove padding, the matrix is: \n");
+    for(int b = 0; b < batch_size; b++) {
+        for(int h = 0; h < head_num; h++) {
+            for(int s = 0; s < max_seq_len; s++) {
+                for(int d = 0; d < head_size; d++) {
+                    printf("h_in[%d] = %f\n", b * head_num * max_seq_len * head_size + h * max_seq_len * head_size + s * head_size + d, h_in[b * head_num * max_seq_len * head_size + h * max_seq_len * head_size + s * head_size + d]);
+                }
+            }
+        }
+    }
 std::cout << "--------------------------------------------------------" << std::endl;
 std::cout << "Printing matrix before padding removal (logical layout [b, s, h, d]):" << std::endl;
 for (int b = 0; b < batch_size; ++b) {

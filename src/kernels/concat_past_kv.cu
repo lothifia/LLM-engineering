@@ -61,7 +61,7 @@ __global__ void append_value_cache(T *v_dst,
     // note: the if judge is a must, because the max_q_len is greater than or equal to cur_seq_len.
     if (token_id < cur_seq_len)
     {
-        // [batch, head num, max_q_len, head size] -> [batch, head num, maxseqlen[cumsum_seq_len:cumsum_seq_len+cur_seq_len], head size]
+        // src: [batch, head num, max_q_len, head size] -> dst: [batch, head num, maxseqlen[cumsum_seq_len:cumsum_seq_len+cur_seq_len], head size]
         int src_offset = batch_id * kv_head_num * max_q_len * head_size +
                          head_id * max_q_len * head_size +
                          token_id * head_size + tid;

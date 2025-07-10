@@ -33,8 +33,8 @@ __device__ T blockReduceSum(T val){
 // 1.this kernel is used after self attention in every layer
 // 2.I allocate threads number by assuming head size can be divided by 4 and 2
 template<typename T>
-__global__ void FusedAddBiasResidualRMSNorm( // residual.shape = [num tokens, hidden_units]
-                                    T* residual, 
+__global__ void FusedAddBiasResidualRMSNorm( 
+                                    T* residual,// residual.shape = [num tokens, hidden_units] 
                                     T* decoder_out, // [num tokens, hidden_units]
                                     /*optional*/const T* bias,  // [hidden_units]
                                     const T* scale, // [hidden_units], RMSNorm weights
