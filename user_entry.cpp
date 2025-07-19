@@ -3,17 +3,19 @@
 
 struct ConvertedModel {
     std::string model_path = "/home/llamaweight/"; // 模型文件路径
-    std::string tokenizer_path = "/home/llama2-7b-tokenizer.bin"; // tokenizer文件路径
+    std::string tokenizer_path = "./llama2-7b-tokenizer.bin"; // tokenizer文件路径
 };
 
 int main(int argc, char **argv) {
     int round = 0;
     std::string history = "";
     ConvertedModel model;
-    // auto model = llm::CreateDummyLLMModel<float>(model.tokenizer_file);//load dummy weight + load tokenizer
-    auto llm_model = llm::CreateRealLLMModel<float>(model.model_path, model.tokenizer_path);//load real weight + load tokenizer
+    auto llm_model = llm::CreateDummyLLMModel<float>(model.tokenizer_path);//load dummy weight + load tokenizer
+    // auto llm_model = llm::CreateRealLLMModel<float>(model.model_path, model.tokenizer_path);//load real weight + load tokenizer
     std::string model_name = llm_model->model_name;
+    std::cout << "model_name: " << model_name << "\n";
     // exist when generate end token or reach max seq
+    std::cout << "gg\n";
     while (true) {
         printf("please input the question: ");
         std::string input;
